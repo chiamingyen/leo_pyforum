@@ -73,6 +73,8 @@ print cgi.escape("<a href='test'>Test</a>", True)
 #@+<< imports >>
 #@+node:myleobook1.20130228000334.8070: ** << imports >>
 import cherrypy, sys, os
+# 用於 download 方法
+from cherrypy.lib import static
 import HTML, math
 # 請注意, 上傳大檔案的方法, 不能同時傳送其他欄位資料, 因此必須單獨處理檔案上傳,
 # 然後將上傳檔案資料存在資料庫或資料檔
@@ -85,6 +87,49 @@ from uuid import *
 from mako.template import Template
 from mako.lookup import TemplateLookup
 #@-<< imports >>
+#@+<< cherrypy.tools.mako >>
+#@+node:amd_yen.20130324210318.1721: ** << cherrypy.tools.mako >>
+# 以下為 tools.mako.directories 的程式碼
+# 因為以 tools 設定後, 必須傳回 dict 資料格式, 與目前的 template 檔案引用不符, 目前傾向直接擷取套稿
+class MakoHandler(cherrypy.dispatch.LateParamPageHandler):
+    """Callable which sets response.body."""
+    
+    def __init__(self, template, next_handler):
+        self.template = template
+        self.next_handler = next_handler
+    
+    def __call__(self):
+        env = globals().copy()
+        env.update(self.next_handler())
+        return self.template.render(**env)
+
+class MakoLoader(object):
+    
+    def __init__(self):
+        self.lookups = {}
+    
+    def __call__(self, filename, directories, module_directory=None,
+                 collection_size=-1):
+        # Find the appropriate template lookup.
+        key = (tuple(directories), module_directory)
+        try:
+            lookup = self.lookups[key]
+        except KeyError:
+            lookup = TemplateLookup(directories=directories,
+                                    module_directory=module_directory,
+                                    collection_size=collection_size,
+                                    )
+            self.lookups[key] = lookup
+        cherrypy.request.lookup = lookup
+        
+        # Replace the current handler.
+        cherrypy.request.template = t = lookup.get_template(filename)
+        cherrypy.request.handler = MakoHandler(t, cherrypy.request.handler)
+
+main = MakoLoader()
+cherrypy.tools.mako = cherrypy.Tool('on_start_resource', main)
+# 以上結束 cherrypy.tools.mako 的程式碼
+#@-<< cherrypy.tools.mako >>
 #@+<< myFieldStorage >>
 #@+node:myleobook1.20130226202854.2728: ** << myFieldStorage >> (大檔傳輸類別)
 # 這是用來上傳大檔案所需的類別
@@ -126,6 +171,9 @@ else:
 #@+node:myleobook1.20130228000334.8049: ** class 個人資料處理(object)
 # os 用於 unlink 檔案 (即刪除檔案用), 以及呼叫執行 Chrome 瀏覽器
 class 個人資料處理(object):
+    
+    #@+<< _cp_config >>
+    #@+node:amd_yen.20130325162809.2047: *3* << _cp_config >>
     _cp_config = {
     # 配合 utf-8 格式之表單內容
     # 若沒有 utf-8 encoding 設定,則表單不可輸入中文
@@ -134,14 +182,17 @@ class 個人資料處理(object):
     'tools.sessions.on' : True,
     'tools.sessions.storage_type' : 'file',
     'tools.sessions.locking' : 'explicit',
+    # 就 OpenShift ./tmp 位於 app-root/runtime/repo/tmp
     'tools.sessions.storage_path' : './tmp',
     # 內定的 session timeout 時間為 60 分鐘
-    'tools.sessions.timeout' : 60
+    'tools.sessions.timeout' : 60,
+    # 以下透過  @cherrypy.tools.mako(filename="mytmpl.txt") decorator 設定的套稿目錄依據
+    'tools.mako.directories' :  template_root_dir+"/templates"
     }
     '''
         取 count session 值, 內定為 0: cherrypy.session.get('count', 0)
         設定 session 中 count 的值: cherrypy.session['count'] = count
- 
+
         # delete all session data
         #cherrypy.session.delete()
         # only delete 'count' session
@@ -150,11 +201,13 @@ class 個人資料處理(object):
     # 網際表單
     # 請注意改為 uuid 辨識唯一資料代號後, 是否需要配合修改
     # 設法改為 Mako based 表單
+    #@-<< _cp_config >>
     
     #@+others
     #@+node:myleobook1.20130228000334.8050: *3* index
+    @cherrypy.expose
     def index(self,stud_number=None,stud_name=None):
-        套稿查詢 = TemplateLookup(directories=['templates'])
+        套稿查詢 = TemplateLookup(directories=[template_root_dir+"/templates"])
         # 必須要從 templates 目錄取出 index.html
         內建頁面 = 套稿查詢.get_template("index.html")
         #座位套稿 = Template(filename='templates/index.html', format_exceptions=True, lookup=套稿查詢)
@@ -200,7 +253,7 @@ class 個人資料處理(object):
     #@+node:myleobook1.20130228000334.8051: *3* searchForm
     # 設法改為 Mako based
     def searchForm(self):
-        套稿查詢 = TemplateLookup(directories=['templates'])
+        套稿查詢 = TemplateLookup(directories=[template_root_dir+"/templates"])
         # 必須要從 templates 目錄取出 index.html
         資料搜尋 = 套稿查詢.get_template("searchform.html")
         #座位套稿 = Template(filename='templates/index.html', format_exceptions=True, lookup=套稿查詢)
@@ -321,7 +374,7 @@ class 個人資料處理(object):
     # 網際表單, 採用 textarea, 希望導入 ckeditor, 以便當作 CMS 使用
     # 設法改為 Mako based
     def cmsinput(self):
-        套稿查詢 = TemplateLookup(directories=['templates'])
+        套稿查詢 = TemplateLookup(directories=[template_root_dir+"/templates"])
         # 必須要從 templates 目錄取出 index.html
         內容輸入 = 套稿查詢.get_template("cmsinput.html")
         #座位套稿 = Template(filename='templates/index.html', format_exceptions=True, lookup=套稿查詢)
@@ -382,6 +435,17 @@ class 個人資料處理(object):
     # 表單處理函式
     def doAct(self, stud_number=None, stud_name=None, \
                     school_dept=None, major=None, expt_salary=None, fileupload=None):
+                        
+        # 若使用者直接執行 doAct, 有無其他更好做法?
+        if stud_number is None:
+            stud_number = ""
+        if stud_name is None:
+            stud_name = ""
+        if school_dept is None:
+            school_dept = ""
+        if expt_salary is None:
+            expt_salary = ""
+
         outString = ""
         outString += "學號:"+str(stud_number)
         outString += "<br />"
@@ -397,7 +461,7 @@ class 個人資料處理(object):
         # 處理檔案上傳, 這裡將檔案暫存在記憶體, 因此無法上傳大檔案
         # 加上 fileupload 變數的判別在 if 前方, 可以避免表單無 fileupload 變數所產生的問題
         if fileupload and (fileupload.file != None):
-            資料檔案目錄 = os.environ['OPENSHIFT_DATA_DIR']
+            資料檔案目錄 = download_root_dir
             上傳目錄 = 資料檔案目錄 + "/downloads"
             if not os.path.exists(上傳目錄):
                 os.makedirs(上傳目錄)
@@ -463,6 +527,15 @@ class 個人資料處理(object):
                     school_dept, major, expt_salary)
         return outString
     doAct.exposed = True
+    #@+node:amd_yen.20130325162809.2049: *3* download
+    # 或許也可以直接利用檔案下載, 就像 CMSimple ?? 安全疑慮 ??
+    def download(self, uuid=None):
+        # 設法由 uuid 取得對應的上傳檔案名稱, 若無上傳檔案則回傳訊息, 若有則傳回對應檔案
+        absDir = download_root_dir + "/downloads"
+        path = os.path.join(absDir, "c2_1.mp3")
+        return static.serve_file(path, "application/x-download",
+                                 "attachment", os.path.basename(path))
+    download.exposed = True
     #@+node:myleobook1.20130228000334.8057: *3* saveData
     # 輸入資料存檔
     def saveData(self, stud_number=None, stud_name=None, \
@@ -641,11 +714,14 @@ class 個人資料處理(object):
         htmlcode += self.menuLink()
         return htmlcode
     #@+node:myleobook1.20130228000334.8062: *3* pageList
+    #def pageList(self, inputList=None, totalitem=0, itemperpage=9, page=1):
     def pageList(self, inputList=None, totalitem=0, itemperpage=9, page=1):
         #print(inputList)
         # templates 為相對目錄
-        套稿查詢 = TemplateLookup(directories=['templates'])
+        # decorator 蓋掉下一行
+        套稿查詢 = TemplateLookup(directories=[template_root_dir+"/templates"])
         # 必須要從 templates 目錄取出 index.html
+        # decorator 蓋掉下一行
         頁面列表 = 套稿查詢.get_template("pagelist.html")
         #座位套稿 = Template(filename='templates/index.html', format_exceptions=True, lookup=套稿查詢)
         #return 座位套稿.render(currentTime=datetime.datetime.now())
@@ -659,7 +735,7 @@ class 個人資料處理(object):
         # templates 為相對目錄
         # 由於為搜尋結果分頁, 因此 inputList 由 search_result session 中取出
         #inputList = cherrypy.session.get('search_result')
-        套稿查詢 = TemplateLookup(directories=['templates'])
+        套稿查詢 = TemplateLookup(directories=[template_root_dir+"/templates"])
         # 必須要從 templates 目錄取出 index.html
         搜尋列表 = 套稿查詢.get_template("spagelist.html")
         #座位套稿 = Template(filename='templates/index.html', format_exceptions=True, lookup=套稿查詢)
@@ -816,8 +892,8 @@ class 個人資料處理(object):
             mako_array.append("<a href=>"+資料.stud_number+"<br />"+資料.stud_name+"</a>")
         #print(mako_array)
         #套稿查詢 = TemplateLookup(directories=['./templates'], output_encoding='utf-8', encoding_errors='replace')
-        # templates 為相對目錄
-        套稿查詢 = TemplateLookup(directories=['templates'])
+        # templates 為絕對目錄
+        套稿查詢 = TemplateLookup(directories=[template_root_dir+"/templates"])
         # 必須要從 templates 目錄取出 index.html
         座位套稿 = 套稿查詢.get_template("gentable.html")
         #座位套稿 = Template(filename='templates/index.html', format_exceptions=True, lookup=套稿查詢)

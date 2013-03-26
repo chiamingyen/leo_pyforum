@@ -86,6 +86,14 @@ ${outString}
 總資料數為: ${totalitem}, 這是第 ${starti+1} 到的 ${endi+1} 筆資料 (from Mako pagelist.html)
 <br /><br />
 <table border=1 width=800>
+## 加入標題列, 應該要將標題列整合到程式資料結構中, 可以是第一筆資料, 其他內容則由第二筆取用
+    <tr>
+        % for 標題 in ["學號","姓名","高中科系","專長","期望薪資","更新功能","刪除功能"]:
+            <th width=100>
+            ${標題}
+            </th>
+        % endfor
+    </tr>
     % for 外索引 in range(len(st_array)):
     <tr>
         % for 內索引 in range(len(st_array[外索引])):
