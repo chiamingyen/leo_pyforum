@@ -61,6 +61,8 @@ print cgi.escape("<a href='test'>Test</a>", True)
 # 希望將資料以 pybean 存在 sqlite3 檔案中
 # 2012.12.16 發現在 Python 3.3 環境 CherryPy 3.2.2 會經常發生 port not bound error
 # 2012.12.25 利用 uuid 唯一代號處理資料更新與刪除
+# 2013.04.08 改為 pybean 0.2.1 id, 而不是 pybean 0.1.2 的 uuid
+# 修改部分, 將 uuid 全部換成 id, 並且拿掉 .bytes, 也就是將 UUID(uuid).bytes 全部改為 id
 # 希望加入跨欄位查詢資料的功能
 #
 # 必須增加分頁的效率, 目前並非局部查詢, 而是全部放入數列後再分頁, 使用資料庫處理是否會較快?
@@ -82,7 +84,8 @@ import HTML, math
 import cgi, tempfile
 # 用於 pybean 資料儲存
 from pybean import Store, SQLiteWriter
-from uuid import *
+# 改為 pybean 0.2.1 後不再需要 uuid 模組
+#from uuid import *
 # for mako
 from mako.template import Template
 from mako.lookup import TemplateLookup
@@ -311,9 +314,10 @@ class 個人資料處理(object):
             專長 = 資料.major
             薪水 = 資料.expt_salary
             #更新連結 = "<a href=\"updateForm?stud_number="+學號+"\">"+學號+"</a>"
-            更新連結 = "<a href=\"updateForm?uuid="+str(資料.uuid)+"\">"+學號+"</a>"
-            更新 = "<a href=\"updateForm?uuid="+str(資料.uuid)+"\">更新</a>"
-            刪除 = "<a href=\"deleteForm?uuid="+str(資料.uuid)+"\">刪除</a>"
+            # 配合 pybean 0.2.1 將 uuid 改為 id
+            更新連結 = "<a href=\"updateForm?id="+str(資料.id)+"\">"+學號+"</a>"
+            更新 = "<a href=\"updateForm?id="+str(資料.id)+"\">更新</a>"
+            刪除 = "<a href=\"deleteForm?id="+str(資料.id)+"\">刪除</a>"
             個人資料.append([更新連結,姓名,科系,專長,薪水,更新,刪除])
         # 是否要將搜尋所得的個人資料, 以 Mako 套稿處理
         #
@@ -333,7 +337,7 @@ class 個人資料處理(object):
     #@+node:myleobook1.20130228000334.8053: *3* deleteForm
     # 刪除表單, 根據 uuid 代號, 列出要刪除的資料, 然後再 doDelete 進行資料刪除
     # 設法改為 Mako based
-    def deleteForm(self,uuid=None):
+    def deleteForm(self,id=None):
         # 設法根據 stud_number 查出對應的欄位資料
         # 改為利用 uuid 查出對應的欄位資料, uuid 為各筆資料的唯一代號
         個人資料 = []
@@ -345,7 +349,12 @@ class 個人資料處理(object):
         # 以 find_one 找出所要的一筆資料
         #一筆資料 = library.find_one("student","stud_number=?",[stud_number])
         #UUID(uuid).bytes 為正確的 uuid 欄位資料
-        一筆資料 = library.find_one("student","uuid=?",[UUID(uuid).bytes])
+        # 配合 pybean 0.2.1 將 UUID(uuid).bytes 改為 id
+        一筆資料 = library.find_one("student","id=?",[id])
+        # 考量當一筆資料為空時
+        if 一筆資料 == None:
+            outString = "沒有資料"
+            return outString
         stud_number = 一筆資料.stud_number
         stud_name = 一筆資料.stud_name
         school_dept = 一筆資料.school_dept
@@ -362,7 +371,7 @@ class 個人資料處理(object):
         outString += "專長:"+str(major)+"<br />"
         outString += "預計薪資:"+str(expt_salary)+"<br />"
         # 將資料對應的 uuid 以隱藏資料送回, 這裡或許會有資料安全疑慮?
-        outString += "<input type=\"hidden\" name=\"uuid\" value=\""+str(uuid)+"\"><br />"
+        outString += "<input type=\"hidden\" name=\"id\" value=\""+str(id)+"\"><br />"
         outString += '''
         <input type=\"submit\" value=\"刪除\">
         </form>
@@ -388,7 +397,8 @@ class 個人資料處理(object):
     # 中調出對應的現有欄位資料, 然後以 value = ... 進行表單的內容後, 讓使用者進行修改
     # 設法改為 Mako based
     #def updateForm(self,stud_number=None):
-    def updateForm(self,uuid=None):
+    def updateForm(self,id=None):
+        # 必須加入 id 無值時的處理
         # 設法根據 stud_number 查出對應的欄位資料
         # 改為利用 uuid 查出對應的欄位資料, uuid 為各筆資料的唯一代號
         個人資料 = []
@@ -400,7 +410,12 @@ class 個人資料處理(object):
         # 以 find_one 找出所要的一筆資料
         #一筆資料 = library.find_one("student","stud_number=?",[stud_number])
         #UUID(uuid).bytes 為正確的 uuid 欄位資料
-        一筆資料 = library.find_one("student","uuid=?",[UUID(uuid).bytes])
+        # 配合 pybean 0.2.1 將 UUID(uuid).bytes 改為 id
+        一筆資料 = library.find_one("student","id=?",[id])
+        # 若查詢後為空資料, 則回覆沒有資料或回傳發生錯誤.
+        if 一筆資料 == None:
+            outString = "沒有資料"
+            return outString
         stud_number = 一筆資料.stud_number
         stud_name = 一筆資料.stud_name
         school_dept = 一筆資料.school_dept
@@ -416,7 +431,7 @@ class 個人資料處理(object):
         outString += "專長:<input type=\"text\" name=\"major\" value=\""+str(major)+"\"><br />"
         outString += "預計薪資:<input type=\"text\" name=\"expt_salary\" value=\""+str(expt_salary)+"\"><br />"
         # 將資料對應的 uuid 以隱藏資料送回, 這裡或許會有資料安全疑慮?
-        outString += "<input type=\"hidden\" name=\"uuid\" value=\""+str(uuid)+"\"><br />"
+        outString += "<input type=\"hidden\" name=\"id\" value=\""+str(id)+"\"><br />"
         outString += '''
         <input type=\"submit\" value=\"更新\">
         <input type=\"reset\" value=\"重填\">
@@ -529,8 +544,9 @@ class 個人資料處理(object):
     doAct.exposed = True
     #@+node:amd_yen.20130325162809.2049: *3* download
     # 或許也可以直接利用檔案下載, 就像 CMSimple ?? 安全疑慮 ??
-    def download(self, uuid=None):
+    def download(self, id=None):
         # 設法由 uuid 取得對應的上傳檔案名稱, 若無上傳檔案則回傳訊息, 若有則傳回對應檔案
+        # 配合 pybean 0.2.1 將 uuid 改為 id
         absDir = download_root_dir + "/downloads"
         path = os.path.join(absDir, "c2_1.mp3")
         return static.serve_file(path, "application/x-download",
@@ -560,6 +576,8 @@ class 個人資料處理(object):
         student.expt_salary = expt_salary
         # 儲存資料表內容
         library.save(student)
+        # 配合 pybean 0.2.1 將 commit 移出, save 與 delete 必須要配合 commit 才能更新資料庫
+        library.commit()
         # 設法改為 Mako based
         return str(stud_number)+","+str(stud_name)+","\
         +str(school_dept)+","+str(major)+','+str(expt_salary)+", 已經存檔"
@@ -608,9 +626,10 @@ class 個人資料處理(object):
                 專長 = 資料.major
                 薪水 = 資料.expt_salary
                 #更新連結 = "<a href=\"updateForm?stud_number="+學號+"\">"+學號+"</a>"
-                更新連結 = "<a href=\"updateForm?uuid="+str(資料.uuid)+"\">"+學號+"</a>"
-                更新 = "<a href=\"updateForm?uuid="+str(資料.uuid)+"\">更新</a>"
-                刪除 = "<a href=\"deleteForm?uuid="+str(資料.uuid)+"\">刪除</a>"
+                # 配合 pybean 0.2.1 將 uuid 改為 id
+                更新連結 = "<a href=\"updateForm?id="+str(資料.id)+"\">"+學號+"</a>"
+                更新 = "<a href=\"updateForm?id="+str(資料.id)+"\">更新</a>"
+                刪除 = "<a href=\"deleteForm?id="+str(資料.id)+"\">刪除</a>"
                 個人資料.append([更新連結,姓名,科系,專長,薪水,更新,刪除])
         #
         # 根據數列中各 tuple 中的學號(亦即 key data[0])進行排序
@@ -625,7 +644,8 @@ class 個人資料處理(object):
     readData.exposed = True
     #@+node:myleobook1.20130228000334.8059: *3* doUpdate
     # 實際執行資料更新的方法
-    def doUpdate(self, uuid=None, stud_number=None, stud_name=None, \
+    # 配合 pybean 0.2.1 將 uuid 改為 id
+    def doUpdate(self, id=None, stud_number=None, stud_name=None, \
                     school_dept=None, major=None, expt_salary=None, itemperpage=9, page=1):
         個人資料 = []
         資料計數 = 0
@@ -635,8 +655,12 @@ class 個人資料處理(object):
         student = library.new("student")
 
         # 以 find_one 找出所要更新的一筆資料
-        更新資料 = library.find_one("student","uuid=?",[UUID(uuid).bytes])
-
+        # 配合 pybean 0.2.1 將 uuid 改為 id, 且將 UUID(uuid).bytes 改為 id
+        更新資料 = library.find_one("student","id=?",[id])
+        # 是否會發生更新資料為空的情況?
+        if 更新資料 == None:
+            outString = "沒有資料"
+            return outString
         # 將更新資料存入 pybean
         更新資料.stud_number = stud_number
         更新資料.stud_name = stud_name
@@ -645,6 +669,8 @@ class 個人資料處理(object):
         更新資料.expt_salary = expt_salary
         # 儲存資料表內容
         library.save(更新資料)
+        # 配合 pybean 0.2.1 將 commit 移出, save 與 delete 必須要配合 commit 才能更新資料庫
+        library.commit()
         # 設法從資料庫中擷取所有資料, 以得到個人資料數列
         for 資料 in library.find("student","1"):
             學號 = 資料.stud_number
@@ -652,11 +678,12 @@ class 個人資料處理(object):
             科系 = 資料.school_dept
             專長 = 資料.major
             薪水 = 資料.expt_salary
-            更新連結 = "<a href=\"updateForm?uuid="+str(資料.uuid)+"\">"+學號+"</a>"
+            # 配合 pybean 0.2.1 將 uuid 改為 id, 且將 UUID(uuid).bytes 改為 id
+            更新連結 = "<a href=\"updateForm?id="+str(資料.id)+"\">"+學號+"</a>"
             # 增加更新與刪除連結
             #個人資料.append([更新連結,姓名,科系,專長,薪水])
-            更新 = "<a href=\"updateForm?uuid="+str(資料.uuid)+"\">更新</a>"
-            刪除 = "<a href=\"deleteForm?uuid="+str(資料.uuid)+"\">刪除</a>"
+            更新 = "<a href=\"updateForm?id="+str(資料.id)+"\">更新</a>"
+            刪除 = "<a href=\"deleteForm?id="+str(資料.id)+"\">刪除</a>"
             個人資料.append([更新連結,姓名,科系,專長,薪水,更新,刪除])
         #
         # 根據數列中各 tuple 中的學號(亦即 key data[0])進行排序
@@ -671,7 +698,8 @@ class 個人資料處理(object):
     doUpdate.exposed = True
     #@+node:myleobook1.20130228000334.8060: *3* doDelete
     # 實際執行資料刪除的方法
-    def doDelete(self, uuid=None, itemperpage=9, page=1):
+    # 配合 pybean 0.2.1 將 uuid 改為 id, 且將 UUID(uuid).bytes 改為 id
+    def doDelete(self, id=None, itemperpage=9, page=1):
         個人資料 = []
         資料計數 = 0
         # 以下改為以 pybean 儲存資料
@@ -679,9 +707,16 @@ class 個人資料處理(object):
         # 動態建立 student 資料表
         student = library.new("student")
         # 以 find_one 找出所要刪除的一筆資料
-        刪除資料 = library.find_one("student","uuid=?",[UUID(uuid).bytes])
+        # 配合 pybean 0.2.1 將 uuid 改為 id, 且將 UUID(uuid).bytes 改為 id
+        刪除資料 = library.find_one("student","id=?",[id])
+        # 考量沒有資料時的情況
+        if 刪除資料 == None:
+            outString = "沒有資料"
+            return outString
         # 刪除此筆資料
         library.delete(刪除資料)
+        # 配合 pybean 0.2.1 將 commit 移出, save 與 delete 必須要配合 commit 才能更新資料庫
+        library.commit()
         # 設法從資料庫中擷取所有資料, 以得到個人資料數列
         for 資料 in library.find("student","1"):
             學號 = 資料.stud_number
@@ -689,10 +724,11 @@ class 個人資料處理(object):
             科系 = 資料.school_dept
             專長 = 資料.major
             薪水 = 資料.expt_salary
-            更新連結 = "<a href=\"updateForm?uuid="+str(資料.uuid)+"\">"+學號+"</a>"
+            # 配合 pybean 0.2.1 將 uuid 改為 id, 且將 UUID(uuid).bytes 改為 id
+            更新連結 = "<a href=\"updateForm?id="+str(資料.id)+"\">"+學號+"</a>"
             #個人資料.append([更新連結,姓名,科系,專長,薪水])
-            更新 = "<a href=\"updateForm?uuid="+str(資料.uuid)+"\">更新</a>"
-            刪除 = "<a href=\"deleteForm?uuid="+str(資料.uuid)+"\">刪除</a>"
+            更新 = "<a href=\"updateForm?id="+str(資料.id)+"\">更新</a>"
+            刪除 = "<a href=\"deleteForm?id="+str(資料.id)+"\">刪除</a>"
             個人資料.append([更新連結,姓名,科系,專長,薪水,更新,刪除])
         #
         # 根據數列中各 tuple 中的學號(亦即 key data[0])進行排序

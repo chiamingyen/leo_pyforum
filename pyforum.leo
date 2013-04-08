@@ -187,8 +187,13 @@ QLineEdit#editorLabel {
     margin: 2px;
 }</t>
 <t tx="myleobook1.20130226133026.3002"></t>
-<t tx="myleobook1.20130226133026.3026">這是一個 CherryPy 網際程式, 使用 Mako template engine, Pybean 資料庫連接
-主要開發的目的在建立一個類似 SForum 的多續內容管理系統, 不僅可以獨立存在, 也能送到 OpenShift 平台執行</t>
+<t tx="myleobook1.20130226133026.3026">請注意, 位於 misc/leo_pyforum 將儘量與 https://github.com/chiamingyen/leo_pyforum 保持同步, 若之間內容有差異, 將
+以 github 上的版本為主.
+
+這是一個 CherryPy 網際程式, 使用 Mako template engine, Pybean 資料庫連接
+主要開發的目的在建立一個類似 SForum 的多續內容管理系統, 不僅可以獨立存在, 也能送到 OpenShift 平台執行
+
+已經將 pybean 升級到 0.2.1 版, 不再如 0.1.2 版使用 uuid 而是單純的 id 整數.</t>
 <t tx="myleobook1.20130226202854.2729">V:\misc\try-leo-master\alphabet.leo#s1
 
 只要將 URL 放在此內文的第一行就可以
